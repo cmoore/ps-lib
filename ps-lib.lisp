@@ -42,5 +42,16 @@
        (if (not (string= (-> document readystate) "loading"))
            (,fx)
            (chain document (add-event-listener "DOMContentLoaded" ,fx))))))
-(export 'with-document-ready)
 
+(defpsmacro ajax-get (url fx)
+  (let ((response (ps:ps-gensym)))
+    `(progn
+       (defvar ,response (new (-x-m-l-http-request)))
+       (chain request (open "GET" ,url 't))
+       (setf (chain request onreadystatechange)
+             (lambda ()
+               (if (= (chain this ready-state) 4)
+                   (if (and (>= (chain this status) 200)
+                            (< (chain this status) 400))
+                       (,fx (chain this response-text))
+                       (chain console (log (chain this response-text))))))))))
