@@ -1,4 +1,4 @@
-;; -*- mode: Lisp; Syntax: COMMON-LISP; Base: 10; eval: (hs-hide-all) -*-
+;; -*- mode: Lisp; Syntax: COMMON-LISP; Base: 10; -*-
 
 ;; Copyright (c) 2017 Clint Moore
 
@@ -22,17 +22,19 @@
 
 
 (defpackage #:ps-lib
-  (:use #:cl
-        #:parenscript)
-  (:export :get-element-by-id
-           :with-document-ready))
+  (:use #:cl)
+  (:export :select :with-document-ready
+           :ajax :ajax-post))
 
 (in-package #:ps-lib)
 
-(defpsmacro get-element-by-id (element)
-  `(chain document (get-element-by-id ,element)))
+(defpsmacro select (selector)
+  `(-> document (query-selector-all ,selector)))
 
 ;; From http://youmightnotneedjquery.com/
+
+(defmacro+ps -> (&rest body)
+  `(chain ,@body))
 
 (defpsmacro with-document-ready (&rest body)
   (let ((fx (ps:ps-gensym)))
@@ -43,15 +45,24 @@
            (,fx)
            (chain document (add-event-listener "DOMContentLoaded" ,fx))))))
 
-(defpsmacro ajax-get (url fx)
-  (let ((response (ps:ps-gensym)))
+(defpsmacro ajax (&key url on-success on-error)
+  (let ((request (ps:ps-gensym)))
     `(progn
-       (defvar ,response (new (-x-m-l-http-request)))
-       (chain request (open "GET" ,url 't))
-       (setf (chain request onreadystatechange)
-             (lambda ()
-               (if (= (chain this ready-state) 4)
-                   (if (and (>= (chain this status) 200)
-                            (< (chain this status) 400))
-                       (,fx (chain this response-text))
-                       (chain console (log (chain this response-text))))))))))
+       (defvar ,request (new (-x-m-l-http-request)))
+       (-> ,request (open "GET" ,url 't))
+       (setf (@ ,request onreadystatechange) (lambda ()
+                                               (if (eql (@ this ready-state) 4)
+                                                   (if (and (<= 200 (@ this status))
+                                                            (> 400 (@ this status)))
+                                                       (,on-success (@ this response-text))
+                                                       (,on-error this)))))
+       (-> ,request (send))
+       (setf ,request null))))
+
+(defpsmacro ajax-post (url data)
+  (let ((request (ps:ps-gensym)))
+    `(progn
+       (defvar ,request (new (-x-m-l-http-request)))
+       (-> ,request (open 'POST' ,url 't))
+       (-> ,request (set-request-header "Content-Type" "application/x-www-form-urlencoded; charset=UTF-8"))
+       (-> ,request (send ,data)))))
