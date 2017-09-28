@@ -22,14 +22,18 @@
 
 
 (defpackage #:ps-lib
-  (:use #:cl)
+  (:use #:cl
+        #:parenscript)
   (:export :select :with-document-ready
-           :ajax :ajax-post))
+           :ajax :ajax-post :-> :sel))
 
 (in-package #:ps-lib)
 
 (defpsmacro select (selector)
-  `(-> document (query-selector-all ,selector)))
+  `($ ,selector))
+
+(defpsmacro sel (selector)
+  `($ ,selector))
 
 ;; From http://youmightnotneedjquery.com/
 
@@ -37,13 +41,7 @@
   `(chain ,@body))
 
 (defpsmacro with-document-ready (&rest body)
-  (let ((fx (ps:ps-gensym)))
-    `(progn
-       (defun ,fx ()
-         ,@body)
-       (if (not (string= (-> document readystate) "loading"))
-           (,fx)
-           (chain document (add-event-listener "DOMContentLoaded" ,fx))))))
+  `(-> ($ document) (ready ,@body)))
 
 (defpsmacro ajax (&key url on-success on-error)
   (let ((request (ps:ps-gensym)))
